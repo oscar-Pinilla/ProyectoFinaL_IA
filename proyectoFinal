@@ -1,0 +1,87 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+
+# ─── 1. CARGAR DATOS ───────────────────────────────────────────────
+df = pd.read_csv('hongos.csv')
+print("Shape:", df.shape)
+print(df.head())
+
+# ─── 2. PREPROCESAMIENTO ───────────────────────────────────────────
+# Verificar valores nulos
+print("\nValores nulos:\n", df.isnull().sum())
+
+# Eliminar columna 'veil-type' (solo tiene un valor único, no aporta info)
+df = df.drop(columns=['veil-type'])
+
+# Codificar todas las columnas categóricas
+le = LabelEncoder()
+for col in df.columns:
+    df[col] = le.fit_transform(df[col])
+
+print("\nDatos codificados:")
+print(df.head())
+
+# Separar features y etiqueta
+X = df.drop(columns=['class'])
+y = df['class']  # 0 = comestible, 1 = venenoso
+
+# Dividir en entrenamiento y prueba (80/20)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+print(f"\nEntrenamiento: {X_train.shape[0]} muestras")
+print(f"Prueba:        {X_test.shape[0]} muestras")
+
+# ─── 3a. SVM ───────────────────────────────────────────────────────
+print("\n─── Entrenando SVM ───")
+svm = SVC(kernel='rbf', C=1, gamma='scale', random_state=42)
+svm.fit(X_train, y_train)
+y_pred_svm = svm.predict(X_test)
+
+print("Accuracy SVM:", accuracy_score(y_test, y_pred_svm))
+print(classification_report(y_test, y_pred_svm, target_names=['Comestible', 'Venenoso']))
+
+# ─── 3b. MLP ───────────────────────────────────────────────────────
+print("\n─── Entrenando MLP ───")
+mlp = MLPClassifier(hidden_layer_sizes=(100, 50), max_iter=300,
+                    activation='relu', solver='adam', random_state=42)
+mlp.fit(X_train, y_train)
+y_pred_mlp = mlp.predict(X_test)
+
+print("Accuracy MLP:", accuracy_score(y_test, y_pred_mlp))
+print(classification_report(y_test, y_pred_mlp, target_names=['Comestible', 'Venenoso']))
+
+# ─── 4. MATRICES DE CONFUSIÓN ──────────────────────────────────────
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+for ax, y_pred, titulo in zip(axes,
+                               [y_pred_svm, y_pred_mlp],
+                               ['SVM (kernel RBF)', 'MLP (100-50)']):
+    cm = confusion_matrix(y_test, y_pred)
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Greens', ax=ax,
+                xticklabels=['Comestible', 'Venenoso'],
+                yticklabels=['Comestible', 'Venenoso'])
+    ax.set_title(f'Matriz de confusión - {titulo}')
+    ax.set_ylabel('Real')
+    ax.set_xlabel('Predicho')
+
+plt.tight_layout()
+plt.savefig('matrices_confusion.png', dpi=150)
+plt.show()
+
+# ─── 5. COMPARATIVA ────────────────────────────────────────────────
+resultados = pd.DataFrame({
+    'Modelo': ['SVM', 'MLP'],
+    'Accuracy': [
+        accuracy_score(y_test, y_pred_svm),
+        accuracy_score(y_test, y_pred_mlp)
+    ]
+})
+print("\n─── Comparativa final ───")
+print(resultados)
